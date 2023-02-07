@@ -55,11 +55,11 @@ start pathToFile\File.extension
 ```
 ## Screenshots
 ### How it looks
-<!-- ![Example1](screenshots/screen1.png)
-![Example2](screenshots/screen2.png) -->
+![Example1](screenshots/screen1.png)
+![Example2](screenshots/screen2.png)
 ### How it could look
 This is **NOT** how app looks app, just a comparison how much better (in my opinion) NiGui apps look on Linux
-<!-- ![Example2](screenshots/linux.png) -->
+![Example2](screenshots/linux.png)
 ## List ToDo - MoSCoW
 ### Must have
 - [ ] Correct opening folder/file on right/left click
