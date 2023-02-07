@@ -31,11 +31,11 @@ nim c -d:mingw -d:release --opt:speed -d:nimNoLentIterators --app:gui searchFile
 ## Performance
 
 ### Problems
-Now app try to draw all found result at once. Because of that not specific enough search result in not complete list - it is created that way to avoid 'App stop responding' problem.  
+Now app try to draw all found result at once. If search is not specific enough, result will be not complete. It is intentional to avoid 'App stop responding' problem.  
 In the future app should draw only part of result, and only after scroll to end of current showing results, load next part.
 
 ## Comparision to Windows default search
-For specific enough file/folder search app in my not-scientific tests find results visibly faster then default Windows search engine.  
+For specific enough file/folder search app (in my not-scientific tests) finds results visibly faster then default Windows search engine.  
 Complete indexing drives can change outcomes. You need to find for youself.
 
 ## How it works?
@@ -58,7 +58,7 @@ start pathToFile\File.extension
 ![Example1](screenshots/screen1.png)
 ![Example2](screenshots/screen2.png)
 ### How it could look
-This is **NOT** how app looks app, just a comparison how much better (in my opinion) NiGui apps look on Linux
+This is **NOT** how app looks, app just a comparison how much better (in my opinion) NiGui apps look on Linux
 ![Example2](screenshots/linux.png)
 ## List ToDo - MoSCoW
 ### Must have
