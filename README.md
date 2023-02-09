@@ -2,12 +2,12 @@
 
 Simple file and folder search tool for Windows using:
 - cmd to find results
-- Nigui as GUI
-- Nim language for bulding fast, lightweight app
+- [Nigui](https://github.com/simonkrauter/NiGui) as GUI
+- [Nim](https://github.com/nim-lang/Nim) language for bulding fast, lightweight app
 
 ## Instalation
 App is only for Windows devices. 
-- Dowload file .zip from realse
+- Dowload file .zip from release
 - Unzip in location of your choice
 - Run searchFiles.exe
 
@@ -26,16 +26,15 @@ Download files and run complie
 ```
 git clone https://github.com/nobodybusiness/SearchFiles.git
 cd SearchFiles
-nim c -d:mingw -d:release --opt:speed -d:nimNoLentIterators --app:gui searchFiles.nim
+nim c -d:mingw -d:release --opt:speed --app:gui searchFiles.nim
 ```
-## Performance
 
-### Problems
-Now app try to draw all found result at once. If search is not specific enough, result will be not complete. It is intentional to avoid 'App stop responding' problem.  
-In the future app should draw only part of result, and only after scroll to end of current showing results, load next part.
+## Performance - Comparision to Windows default search
+In my not-scientific tests app finds results visibly faster then default Windows search engine. You can run simple search to compare speed:
+- Run serachfiles.exe, type``` *.png``` select ``` C:``` from drive list, do **not** click search button yet. 
+- In Windows explorer go to C: drive and type in search bar``` *.png``` and immediately click serach button in app.
+- Wait for results 
 
-## Comparision to Windows default search
-For specific enough file/folder search app (in my not-scientific tests) finds results visibly faster then default Windows search engine.  
 Complete indexing drives can change outcomes. You need to find for youself.
 
 ## How it works?
@@ -47,11 +46,34 @@ wmic logicaldisk get name
 ```
 >To find files/folders by name
 ```
-device: dir "\name*"/s
+device: dir "\name*"/s 
 ```
 >To open file/folder
 ```
 start pathToFile\File.extension
+```
+## How to use ```*``` and ```.```
+App is searching for all file/folders name like
+```
+yourSearch*
+```
+For example running ```test``` will find results such as
+```
+tests.txt
+test.png
+TeSt_xyz.md
+TestFolder
+```
+You can add ```*``` char to find greater range of results.  
+For example running ```*test``` will find same results that search above and additional results such as
+```
+MyTests.zip
+MyTestFolder
+```
+You can add ```.``` char to find specific extension files
+For example running ```test*.txt``` in first example would find only 
+```
+tests.txt
 ```
 ## Screenshots
 ### How it looks
@@ -62,12 +84,13 @@ This is **NOT** how app looks, app just a comparison how much better (in my opin
 ![Example2](screenshots/linux.png)
 ## List ToDo - MoSCoW
 ### Must have
-- [ ] Correct opening folder/file on right/left click
-- [ ] Change generating buttons procces to draw only visible part of buttons and draw rest on scrolling
+- [x] Correct opening folder/file on right/left click
+- [x] Change generating buttons procces to draw only visible part of buttons and draw rest on scrolling
 ### Should have
 - [ ] Make sorting by type,date,name
-- [ ] Size not from mb, but from kb
+- [x] Size not from mb, but from kb
 - [ ] On return key search
+- [ ] Filter options for results
 ### Could have
 - [ ] Arrows key for scroll
 - [ ] Getting icons on default opening program

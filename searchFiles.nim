@@ -1,9 +1,9 @@
-## SearchFiles_v0.1
+## SearchFiles_v0.2
 ## App for faster searching files and folders
 ## on windows with use of cmd 
 ## 
 ## Important: when building from linux use:
-## "nim c -d:mingw -d:nimNoLentIterators --app:gui searchFiles.nim"
+## nim c -d:mingw  --threads:on --app:gui searchFiles.nim
 
 ## Imports
 import nigui
@@ -107,10 +107,13 @@ method handleDrawEvent*(control: CustomButton, event: DrawEvent) =
         # show size only if not folder
         var sizeStr: string
         if obj.size > 999:
-            # 999.00mb is max, bigger shows Gb
-            sizeStr = (obj.size / 1024).formatFloat(ffDecimal, 2) & "Gb"
+            # 999.00kb is max, bigger shows mb
+            if obj.size / 1024 > 999:
+                sizeStr = (obj.size / 1024 / 1024).formatFloat(ffDecimal, 2) & "Gb"
+            else:
+                sizeStr = (obj.size / 1024).formatFloat(ffDecimal, 2) & "mb"
         else:
-            sizeStr = obj.size.formatFloat(ffDecimal, 2) & "mb"
+            sizeStr = obj.size.formatFloat(ffDecimal, 2) & "kb"
 
         canvas.drawText("size: " & sizeStr, control.width-225, 34)
 
@@ -119,13 +122,8 @@ method handleDrawEvent*(control: CustomButton, event: DrawEvent) =
 
     # Icon
     if obj.dir:
-        # icon for folder/file
-        # canvas.areaColor=rgb(0,255,0)
-        # canvas.drawRectArea(12,12,36,36)
         canvas.drawImage(imageFolder, 12, 12, 36, 36)
     else:
-        # canvas.areaColor=rgb(0,0,255)
-        # canvas.drawRectArea(12,12,36,36)
         canvas.drawImage(imageFile, 12, 12, 36, 36)
 
 #-----------------------------
@@ -188,7 +186,7 @@ proc createAllFound*(lines: seq[string]): seq[Found] =
                 # diffrent settings for dir, file
                 dir = true
             else:
-                size = (line[3].replace(",").parseInt() / 1024 / 1024)
+                size = (line[3].replace(",").parseInt() / 1024)
                 typeExt = line[4].substr(line[4].findLastComa() + 1)
                 if typeExt.len > 8:
                     # if too long type, trim
@@ -234,9 +232,13 @@ app.init()
 colorText = rgb(0, 0, 0)
 colorBackground = rgb(255, 255, 255)
 
-var window = newWindow("Search Files v0.1")
+var window = newWindow("Search Files v0.2")
 
 var containerMain = newLayoutContainer(Layout_Vertical)
+
+#-----------------------------
+#           USER
+#-----------------------------
 
 var containerUser = newLayoutContainer(Layout_Horizontal)
 
@@ -256,82 +258,178 @@ driveList.options = allDrives
 containerUser.add(textBox)
 containerUser.add(driveList)
 containerUser.add(buttonSearch)
-
 containerUser.frame = newFrame("Type what to search")
 
 containerMain.add(containerUser)
 
-var progress = newLayoutContainer(Layout_Horizontal)
-progress.padding = 10
+#-----------------------------
+#          PARTS
+#-----------------------------
 
-var percent = newLabel("0%")
-percent.yTextAlign = YTextAlign_Top
+var containerParts = newContainer()
+containerParts.widthMode = WidthMode_Fill
+containerParts.height = 60
 
-var progressBar = newProgressBar()
-progressBar.value = 0.0
+var labelStaticStatus = newLabel("Status:   ")
+containerParts.add(labelStaticStatus)
+labelStaticStatus.x = 5
+labelStaticStatus.y = 7
+labelStaticStatus.fontSize = 16
 
-progress.add(progressBar)
-progress.add(percent)
+var labelStatus = newLabel("Wait     ")
+containerParts.add(labelStatus)
+labelStatus.x = 60
+labelStatus.y = 7
+labelStatus.fontSize = 16
+labelStatus.fontBold = true
+labelStatus.textColor = rgb(0, 0, 255)
 
-containerMain.add(progress)
+proc setStatus(labelStatus: Label,status: string)=
+    # helper function to setup label
+    labelStatus.text = status & "     "
+    var color: Color
+    
+    if status == "Wait":
+        color = rgb(0,0,255)
+    elif status == "Work":
+        color = rgb(255,0,0)
+    elif status == "Done":
+        color =rgb(0,255,0)
 
-# setup images for buttons
+    labelStatus.textColor = color
+
+var buttonPrevious = newButton("/\\")
+containerParts.add(buttonPrevious)
+buttonPrevious.x = 150
+buttonPrevious.y = 0
+buttonPrevious.height = 30
+
+var buttonNext = newButton("\\/")
+containerParts.add(buttonNext)
+buttonNext.x = 175
+buttonNext.y = 0
+buttonNext.height = 30
+
+var labelCurentlyShowing = newLabel("")
+containerParts.add(labelCurentlyShowing)
+labelCurentlyShowing.widthMode=WidthMode_Fill
+labelCurentlyShowing.x = 260
+labelCurentlyShowing.y = 7
+labelCurentlyShowing.fontSize = 16
+
+containerMain.add(containerParts)
+
+var timer: Timer
+# add wait after resize window (too many call on resize)
+proc timerProc(event: TimerEvent) =
+    if window.width < 600:
+        window.width = 600
+    if window.height < 650:
+        window.height = 650
+# resize and redraw of positions depending on window size
+window.onResize = proc(event: ResizeEvent) =
+    if window.width < 600 or window.height < 650:
+        timer = startTimer(1000, timerProc)
+
+#-----------------------------
+#        BUTTONS
+#-----------------------------
+
+# setup for buttons
+    # images
 imageFile.loadFromFile("icons/icons8-easy-access-48.png")
 imageFolder.loadFromFile("icons/icons8-file-folder-48.png")
+    # Objects
+var containerButtons: LayoutContainer
+var allFoundObjects: seq[Found]
+    # setup for showing part of results (first 7)
+var showingResultsHigh: int
 
-var containerButtons = newLayoutContainer(Layout_Vertical)
-with containerButtons:
-    heightMode = HeightMode_Fill
-        # scrolling
-    widthMode = WidthMode_Fill
+#-----------------------------
+#        LISTENERS
+#-----------------------------
+
+proc removeButtonsFromContainer()=
+    # clear buttons from container
+    if containerMain.childControls.contains(containerButtons):
+        containerMain.remove(containerButtons)
+    containerButtons = newLayoutContainer(Layout_Vertical)
+
+proc drawShowingButtons(firstRun: bool)=
+    # draw currently showing buttons
+    if firstRun:
+        showingResultsHigh = min(6,allFoundObjects.len - 1)
+
+    else:
+        if showingResultsHigh <= 0:
+            # cycle to end 
+            showingResultsHigh = allFoundObjects.len - 1
+
+        if showingResultsHigh > allFoundObjects.len - 1:
+            # cycle to start 
+            showingResultsHigh = min(6,allFoundObjects.len - 1)
+    
+    let showingResultsLow = max(0,showingResultsHigh - 6) 
+
+    labelCurentlyShowing.text = $(showingResultsLow + 1) &
+                                "-" & $(showingResultsHigh + 1) &
+                                "/" & $(allFoundObjects.len)
+    
+    for i in showingResultsLow..showingResultsHigh:
+            # draw firsty 7 objects
+            let button = newButtonCustom(allFoundObjects[i])
+            containerButtons.add(button)
+            button.onMouseButtonDown = proc (event: MouseEvent) =
+                let castObject = cast[CustomButton](event.control).found
+                let runnableFile = castObject.path & "\\" & castObject.name
+                if event.button == MouseButton_Left:
+                    # open file/ run app
+                    runnableFile.openExplorerOrAppByPath
+                if event.button == MouseButton_Right:
+                    castObject.path.openExplorerOrAppByPath
+
+    containerMain.add(containerButtons)
+    labelStatus.setStatus("Done")
+
+buttonPrevious.onClick = proc(event: ClickEvent)=
+    removeButtonsFromContainer()
+    showingResultsHigh = showingResultsHigh - 6
+    drawShowingButtons(false)
+
+buttonNext.onClick = proc(event: ClickEvent)=
+    removeButtonsFromContainer()
+    showingResultsHigh = showingResultsHigh + 6
+    drawShowingButtons(false)
 
 buttonSearch.onClick = proc(event: ClickEvent) =
-    if containerButtons.childControls.len > 0:
-        # removes prebious found objects
-        for child in containerButtons.childControls:
-            containerButtons.remove(child)
-
-    # info for User that program started
-    progressBar.value = 0.05
-    percent.text = "5%"
+    labelStatus.setStatus("Work")
+    labelCurentlyShowing.text = ""
+    removeButtonsFromContainer()
 
     var find = textBox.text
         # search string
     if find.len < 3:
         # shorter len gives way to many results
-        progressBar.value = 0.00
-        percent.text = "0%"
         window.alert("Minimal length for search is 3 characters!\nTip:You can omit this by adding '*' chars but it is not recomended.")
+        labelStatus.setStatus("Wait")
     else:
         let drive = driveList.value
             # currently selected drive
         let cmdReturn = runWindowsCmdFindAll(drive, find)
 
-        progressBar.value = 0.40
-        percent.text = "40%"
-
         var rawLines = cmdReturn.split("\n")
 
         if rawLines[0].contains("device is not"):
             # early exit if first return signal no device
-            progressBar.value = 0.00
-            percent.text = "0%"
-            window.alert("Device is not ready.")
+            window.alert("Device You have chosen is not ready.")
+            labelStatus.setStatus("Wait")
             return
 
         if rawLines[rawLines.len-2].contains("File Not Found"):
             # earle exit if last line signal no such file
-            progressBar.value = 0.00
-            percent.text = "0%"
-            window.alert("There is no such file.")
+            window.alert("There is no results for Your search.")
+            labelStatus.setStatus("Wait")
             return
-
-        if rawLines.len > 250:
-            # work-around for too many creating buttons
-            # in the future app should not to try load all result in same time,
-            # but in parts
-            window.alert("There is too many results for this program!\nTry to be more specific.\nShowing first result.\nTip: You can use .extension to specify your search")
-            rawLines.delete(250..rawLines.len-1)
 
         # remove 2 first lines - containing 'Volume in drive...' and 'Serial Number...'
         rawLines.delete(0..2)
@@ -342,44 +440,22 @@ buttonSearch.onClick = proc(event: ClickEvent) =
         # filtered data form cmd
         let correctedLines = rawlines
             .filter(x =>
-                    #not x.contains("Volume in drive") and
-                        #not x.contains("Serial Number") and
                 not x.contains("File(s)") and
                 not x.contains("Dir(s)") and
-                #not x.contains("Total Files Listed") and
                 x != "" and
                 x != " ")
 
-        # window.alert($output)
-        var allFoundObjects: seq[Found]
         allFoundObjects = @[]
+            # removes previous Objects
         allFoundObjects = correctedLines.createAllFound()
 
-        progressBar.value = 0.80
-        percent.text = "80%"
+        drawShowingButtons(true)
 
-        for foundObj in allFoundObjects:
-            let button = newButtonCustom(foundObj)
-            button.onMouseButtonDown = proc (event: MouseEvent) =
-                let pathToFile = foundObj.path
-                let runnableFile = foundObj.path & "\\" & foundObj.name
-                if event.button == MouseButton_Left:
-                    # open file/ run app
-                    #window.alert(runnableFile)
-                    runnableFile.openExplorerOrAppByPath
-                if event.button == MouseButton_Right:
-                    #window.alert(pathToFile)
-                    pathToFile.openExplorerOrAppByPath
-            containerButtons.add(button)
-
-        progressBar.value = 1.00
-        percent.text = "100%"
-
-containerMain.add(containerButtons)
-
+#-----------------------------
+#        END
+#-----------------------------
 window.width = 600
-window.height = 600
-
+window.height = 650
 window.add(containerMain)
 
 window.show()
