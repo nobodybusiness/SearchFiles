@@ -31,8 +31,8 @@ nim c -d:mingw -d:release --opt:speed --app:gui searchFiles.nim
 
 ## Performance - Comparision to Windows default search
 In my not-scientific tests app finds results visibly faster then default Windows search engine. You can run simple search to compare speed:
-- Run serachfiles.exe, type``` *.png``` select ``` C:``` from drive list, do **not** click search button yet. 
-- In Windows explorer go to C: drive and type in search bar``` *.png``` and immediately click serach button in app.
+- Run serachfiles.exe, type ```*.png``` select ```C:``` from drive list, do **not** click search button yet. 
+- In Windows explorer go to C: drive and type in search bar ```*.png``` and immediately click serach button in app.
 - Wait for results 
 
 Complete indexing drives can change outcomes. You need to find for youself.
@@ -80,7 +80,7 @@ tests.txt
 ![Example1](screenshots/screen1.png)
 ![Example2](screenshots/screen2.png)
 ### How it could look
-This is **NOT** how app looks, app just a comparison how much better (in my opinion) NiGui apps look on Linux
+This is **NOT** how app looks, just a comparison how much better (in my opinion) NiGui apps look on Linux
 ![Example2](screenshots/linux.png)
 ## List ToDo - MoSCoW
 ### Must have
