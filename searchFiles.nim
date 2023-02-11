@@ -3,7 +3,7 @@
 ## on windows with use of cmd 
 ## 
 ## Important: when building from linux use:
-## nim c -d:mingw  --threads:on --app:gui searchFiles.nim
+## nim c -d:mingw -d:realese --opt:speed  --threads:on --app:gui searchFiles.nim
 
 ## Imports
 import nigui
@@ -284,17 +284,17 @@ labelStatus.fontSize = 16
 labelStatus.fontBold = true
 labelStatus.textColor = rgb(0, 0, 255)
 
-proc setStatus(labelStatus: Label,status: string)=
+proc setStatus(labelStatus: Label, status: string) =
     # helper function to setup label
     labelStatus.text = status & "     "
     var color: Color
-    
+
     if status == "Wait":
-        color = rgb(0,0,255)
+        color = rgb(0, 0, 255)
     elif status == "Work":
-        color = rgb(255,0,0)
+        color = rgb(255, 0, 0)
     elif status == "Done":
-        color =rgb(0,255,0)
+        color = rgb(0, 255, 0)
 
     labelStatus.textColor = color
 
@@ -312,7 +312,7 @@ buttonNext.height = 30
 
 var labelCurentlyShowing = newLabel("")
 containerParts.add(labelCurentlyShowing)
-labelCurentlyShowing.widthMode=WidthMode_Fill
+labelCurentlyShowing.widthMode = WidthMode_Fill
 labelCurentlyShowing.x = 260
 labelCurentlyShowing.y = 7
 labelCurentlyShowing.fontSize = 16
@@ -349,56 +349,59 @@ var showingResultsHigh: int
 #        LISTENERS
 #-----------------------------
 
-proc removeButtonsFromContainer()=
+proc removeButtonsFromContainer() =
     # clear buttons from container
     if containerMain.childControls.contains(containerButtons):
         containerMain.remove(containerButtons)
     containerButtons = newLayoutContainer(Layout_Vertical)
 
-proc drawShowingButtons(firstRun: bool)=
+proc drawShowingButtons(firstRun: bool) =
     # draw currently showing buttons
     if firstRun:
-        showingResultsHigh = min(6,allFoundObjects.len - 1)
-
+        showingResultsHigh = min(6, allFoundObjects.len - 1)
     else:
-        if showingResultsHigh <= 0:
-            # cycle to end 
+        if showingResultsHigh <= - 1:
+            # cycle to last
+            showingResultsHigh = allFoundObjects.len - 1
+        elif showingResultsHigh <= 6:
+            # show first
+            showingResultsHigh = min(6,allFoundObjects.len - 1)
+        elif showingResultsHigh >= allFoundObjects.len + 6:
+            # cycle to first
+            showingResultsHigh = min(6, allFoundObjects.len - 1)
+        elif showingResultsHigh >= allFoundObjects.len - 1:
+            # show last
             showingResultsHigh = allFoundObjects.len - 1
 
-        if showingResultsHigh > allFoundObjects.len - 1:
-            # cycle to start 
-            showingResultsHigh = min(6,allFoundObjects.len - 1)
-    
-    let showingResultsLow = max(0,showingResultsHigh - 6) 
-
+    let showingResultsLow = max(0,showingResultsHigh - 6)
     labelCurentlyShowing.text = $(showingResultsLow + 1) &
                                 "-" & $(showingResultsHigh + 1) &
                                 "/" & $(allFoundObjects.len)
-    
+
     for i in showingResultsLow..showingResultsHigh:
-            # draw firsty 7 objects
-            let button = newButtonCustom(allFoundObjects[i])
-            containerButtons.add(button)
-            button.onMouseButtonDown = proc (event: MouseEvent) =
-                let castObject = cast[CustomButton](event.control).found
-                let runnableFile = castObject.path & "\\" & castObject.name
-                if event.button == MouseButton_Left:
-                    # open file/ run app
-                    runnableFile.openExplorerOrAppByPath
-                if event.button == MouseButton_Right:
-                    castObject.path.openExplorerOrAppByPath
+        # draw firsty 7 objects
+        let button = newButtonCustom(allFoundObjects[i])
+        containerButtons.add(button)
+        button.onMouseButtonDown = proc (event: MouseEvent) =
+            let castObject = cast[CustomButton](event.control).found
+            let runnableFile = castObject.path & "\\" & castObject.name
+            if event.button == MouseButton_Left:
+                # open file/ run app
+                runnableFile.openExplorerOrAppByPath
+            if event.button == MouseButton_Right:
+                castObject.path.openExplorerOrAppByPath
 
     containerMain.add(containerButtons)
     labelStatus.setStatus("Done")
 
-buttonPrevious.onClick = proc(event: ClickEvent)=
+buttonPrevious.onClick = proc(event: ClickEvent) =
     removeButtonsFromContainer()
-    showingResultsHigh = showingResultsHigh - 6
+    showingResultsHigh = showingResultsHigh - 7
     drawShowingButtons(false)
 
-buttonNext.onClick = proc(event: ClickEvent)=
+buttonNext.onClick = proc(event: ClickEvent) =
     removeButtonsFromContainer()
-    showingResultsHigh = showingResultsHigh + 6
+    showingResultsHigh = showingResultsHigh + 7
     drawShowingButtons(false)
 
 buttonSearch.onClick = proc(event: ClickEvent) =
@@ -465,9 +468,6 @@ app.run()
 #[
 
 TODO:
-    -make sorting possible
-    -size form kb->mb->gb
-    -on 'return' key search
-    -arrows key to scroll?
-    -better idea for rawlines and creating buttons
+    - sort
+    - filter
 ]#
