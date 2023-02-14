@@ -1,4 +1,4 @@
-## SearchFiles_v0.2
+## SearchFiles_v0.3
 ## App for faster searching files and folders
 ## on windows with use of cmd 
 ## 
@@ -12,6 +12,7 @@ import std/strutils
 import std/sequtils
 import std/sugar
 import std/with
+import std/algorithm
 
 ## Created variables to use in handleDrawEvent
 var imageFile = newImage()
@@ -163,7 +164,10 @@ proc createAllFound*(lines: seq[string]): seq[Found] =
 
         if line[0] == "Directory":
             # creation of object
-            let path = line[2]
+            var path: string
+            for j in 2..<line.len:
+                path = path & line[j] & " "
+            path.removeSuffix(" ")
             allFound.add(Found(path: path))
         else:
             var curFound = allFound[allFound.len-1]
@@ -174,7 +178,11 @@ proc createAllFound*(lines: seq[string]): seq[Found] =
 
             if isPM:
                 # change to 24h format
-                time = $(line[1].substr(0, 1).parseInt + 12) & line[1].substr(2)
+                if line[1].substr(0, 1).parseInt != 12:
+                    time = $(line[1].substr(0, 1).parseInt + 12) & line[1].substr(2)
+                else:
+                    # 24:00 -> 00:00
+                    time = "00" & line[1].substr(2)
             else:
                 time = line[1]
 
@@ -191,7 +199,11 @@ proc createAllFound*(lines: seq[string]): seq[Found] =
                 if typeExt.len > 8:
                     # if too long type, trim
                     typeExt = typeExt.substr(0, 5) & "..."
-            let name = line[4]
+            var name: string
+            for j in 4..<line.len:
+                name = name & line[j] & " " 
+
+            name.removeSuffix(" ")    
 
             if curFound.name != "":
                 # check if already exist object for current path
@@ -220,8 +232,11 @@ proc runWindowsCmdFindAll*(drive: string, substringName: string): string =
         # example C: dir "\*search*" /s
         # {mount C} {find} {from root} {substings} {all subfolders}
 
-proc openExplorerOrAppByPath(path: string) =
-    discard runWindowsCmd("start " & path)
+proc openApp(drive, path, app: string) =
+    discard runWindowsCmd(drive & "& cd " & "\"" & path & "\" & " & "start " & "\"\" \"" & app & "\"")
+        # z: & cd "z:\..." & start "" "text.txt"
+proc openExplorer(drive, path: string) =
+    discard runWindowsCmd(drive & "& explorer.exe " & "\"" & path & "\"")
 
 ## Start of app
 #-----------------------------
@@ -232,7 +247,7 @@ app.init()
 colorText = rgb(0, 0, 0)
 colorBackground = rgb(255, 255, 255)
 
-var window = newWindow("Search Files v0.2")
+var window = newWindow("Search Files v0.3")
 
 var containerMain = newLayoutContainer(Layout_Vertical)
 
@@ -240,7 +255,10 @@ var containerMain = newLayoutContainer(Layout_Vertical)
 #           USER
 #-----------------------------
 
-var containerUser = newLayoutContainer(Layout_Horizontal)
+var containerUser = newLayoutContainer(Layout_Vertical)
+
+# First line
+var innerContainerUserFirst = newLayoutContainer(Layout_Horizontal)
 
 var textBox = newTextBox("")
 
@@ -251,17 +269,44 @@ driveList.width = buttonSearch.width
 driveList.height = buttonSearch.height
 
 let allDrivesSting = runWindowsCmd("wmic logicaldisk get name")
+    # let firstDrive = @["All"] - maybe later
+    # let lastDrive = @["Path"] - maybe later
 let allDrives = allDrivesSting.splitWhitespace().filter(x=>x != "").filter(x=>x != "Name")
+
 driveList.options = allDrives
     # add to comboBox results
 
-containerUser.add(textBox)
-containerUser.add(driveList)
-containerUser.add(buttonSearch)
-containerUser.frame = newFrame("Type what to search")
+innerContainerUserFirst.add(textBox)
+innerContainerUserFirst.add(driveList)
+innerContainerUserFirst.add(buttonSearch)
+
+innerContainerUserFirst.frame = newFrame("Type folder/file and select drive to search")
+
+# Second line
+var innerContainerUserSecond = newLayoutContainer(Layout_Horizontal)
+
+var comboSortBy = newComboBox(@["Name", "Date", "Size", "Type"])
+
+var textBoxFilter = newTextBox("")
+
+var comboFilterType = newComboBox(@["Files and Folders", "Files", "Folders"])
+
+var buttonFilter = newButton("Filter/Sort")
+
+innerContainerUserSecond.add(comboSortBy)
+innerContainerUserSecond.add(textBoxFilter)
+innerContainerUserSecond.add(comboFilterType)
+innerContainerUserSecond.add(buttonFilter)
+
+innerContainerUserSecond.frame = newFrame("Sort and/or filter results")
+
+containerUser.add(innerContainerUserFirst)
+containerUser.add(innerContainerUserSecond)
 
 containerMain.add(containerUser)
 
+# hide container - used only if there are results?
+#innerContainerUserSecond.hide()
 #-----------------------------
 #          PARTS
 #-----------------------------
@@ -324,11 +369,11 @@ var timer: Timer
 proc timerProc(event: TimerEvent) =
     if window.width < 600:
         window.width = 600
-    if window.height < 650:
-        window.height = 650
+    if window.height < 700:
+        window.height = 700
 # resize and redraw of positions depending on window size
 window.onResize = proc(event: ResizeEvent) =
-    if window.width < 600 or window.height < 650:
+    if window.width < 600 or window.height < 700:
         timer = startTimer(1000, timerProc)
 
 #-----------------------------
@@ -342,6 +387,7 @@ imageFolder.loadFromFile("icons/icons8-file-folder-48.png")
     # Objects
 var containerButtons: LayoutContainer
 var allFoundObjects: seq[Found]
+var allFilteredObjects: seq[Found]
     # setup for showing part of results (first 7)
 var showingResultsHigh: int
 
@@ -358,41 +404,113 @@ proc removeButtonsFromContainer() =
 proc drawShowingButtons(firstRun: bool) =
     # draw currently showing buttons
     if firstRun:
-        showingResultsHigh = min(6, allFoundObjects.len - 1)
+        showingResultsHigh = min(6, allFilteredObjects.len - 1)
     else:
         if showingResultsHigh <= - 1:
             # cycle to last
-            showingResultsHigh = allFoundObjects.len - 1
+            showingResultsHigh = allFilteredObjects.len - 1
         elif showingResultsHigh <= 6:
             # show first
-            showingResultsHigh = min(6,allFoundObjects.len - 1)
-        elif showingResultsHigh >= allFoundObjects.len + 6:
+            showingResultsHigh = min(6, allFilteredObjects.len - 1)
+        elif showingResultsHigh >= allFilteredObjects.len + 6:
             # cycle to first
-            showingResultsHigh = min(6, allFoundObjects.len - 1)
-        elif showingResultsHigh >= allFoundObjects.len - 1:
+            showingResultsHigh = min(6, allFilteredObjects.len - 1)
+        elif showingResultsHigh >= allFilteredObjects.len - 1:
             # show last
-            showingResultsHigh = allFoundObjects.len - 1
+            showingResultsHigh = allFilteredObjects.len - 1
 
-    let showingResultsLow = max(0,showingResultsHigh - 6)
-    labelCurentlyShowing.text = $(showingResultsLow + 1) &
+    let showingResultsLow = max(0, showingResultsHigh - 6)
+
+    if allFilteredObjects.len == 0:
+        labelCurentlyShowing.text = ""
+
+    else:
+        labelCurentlyShowing.text = $(showingResultsLow + 1) &
                                 "-" & $(showingResultsHigh + 1) &
-                                "/" & $(allFoundObjects.len)
+                                "/" & $(allFilteredObjects.len) &
+                                "(" & $(allFoundObjects.len) & ")"
 
     for i in showingResultsLow..showingResultsHigh:
         # draw firsty 7 objects
-        let button = newButtonCustom(allFoundObjects[i])
+        let button = newButtonCustom(allFilteredObjects[i])
         containerButtons.add(button)
         button.onMouseButtonDown = proc (event: MouseEvent) =
+            let drive = driveList.value
+                # drive
             let castObject = cast[CustomButton](event.control).found
-            let runnableFile = castObject.path & "\\" & castObject.name
+                # cast object
             if event.button == MouseButton_Left:
                 # open file/ run app
-                runnableFile.openExplorerOrAppByPath
+                if castObject.dir:
+                    openExplorer(drive, castObject.path & "\\" & castObject.name)
+                else:
+                    openApp(drive, castObject.path, castObject.name)
             if event.button == MouseButton_Right:
-                castObject.path.openExplorerOrAppByPath
+                openExplorer(drive, castObject.path)
 
     containerMain.add(containerButtons)
     labelStatus.setStatus("Done")
+
+# sorting options
+proc cmpName(x, y: Found): int =
+    cmp(x.name, y.name)
+# date size type
+proc cmpDate(x, y: Found): int =
+    # example date 02/05/2023 and time 10:00
+    # map date to float 2023.05021000
+    let xDate = x.date.split("/").map(e=>e.parseFloat)
+    let xTime = x.time.split(":").map(e=>e.parseFloat)
+    let xValue = xDate[2] +
+                0.01 * xDate[1] +
+                0.0001 * xDate[0] +
+                0.000001 * xTime[0] +
+                0.00000001 * xTime[1]
+
+    let yDate = y.date.split("/").map(e=>e.parseFloat)
+    let yTime = y.time.split(":").map(e=>e.parseFloat)
+    let yValue = yDate[2] +
+                0.01 * yDate[1] +
+                0.0001 * yDate[0] +
+                0.000001 * yTime[0] +
+                0.00000001 * yTime[1]
+
+    if xValue > yValue:
+        result = 1
+    elif xValue < yValue:
+        result = -1
+    else:
+        result = 0
+
+proc cmpSize(x, y: Found): int =
+    cmp(x.size, y.size)
+
+proc cmpType(x, y: Found): int =
+    cmp(x.typeExt, y.typeExt)
+
+proc sortAndFilterObjects(allObject: seq[Found]): seq[Found] =
+    # need to reset sort filter options on search and hide!
+    let sortingBy = comboSortBy.value
+    let filterName = textBoxFilter.text
+    let filterType = comboFilterType.value
+    var obj = cast[seq[Found]](allObject)
+    # filter => folders or files
+    if filterType == "Files":
+        obj = obj.filter(e=>not e.dir)
+    elif filterType == "Folders":
+        obj = obj.filter(e=>e.dir)
+    # filter by name
+    if filterName != "":
+        obj = obj.filter(e=>e.name.toLower.contains(filterName.toLower))
+    # Sorting
+    if sortingBy == "Name":
+        obj.sort(cmpName)
+    elif sortingBy == "Date":
+        obj.sort(cmpDate)
+    elif sortingBy == "Size":
+        obj.sort(cmpSize)
+    elif sortingBy == "Type":
+        obj.sort(cmpType)
+    result = obj
 
 buttonPrevious.onClick = proc(event: ClickEvent) =
     removeButtonsFromContainer()
@@ -418,6 +536,7 @@ buttonSearch.onClick = proc(event: ClickEvent) =
     else:
         let drive = driveList.value
             # currently selected drive
+
         let cmdReturn = runWindowsCmdFindAll(drive, find)
 
         var rawLines = cmdReturn.split("\n")
@@ -452,13 +571,22 @@ buttonSearch.onClick = proc(event: ClickEvent) =
             # removes previous Objects
         allFoundObjects = correctedLines.createAllFound()
 
+        allFilteredObjects = @[]
+            # removes previous sorted obj
+        allFilteredObjects = allFoundObjects.sortAndFilterObjects()
+
         drawShowingButtons(true)
 
+buttonFilter.onClick = proc(event: ClickEvent) =
+    removeButtonsFromContainer()
+    allFilteredObjects = @[]
+    allFilteredObjects = allFoundObjects.sortAndFilterObjects()
+    drawShowingButtons(true)
 #-----------------------------
 #        END
 #-----------------------------
 window.width = 600
-window.height = 650
+window.height = 700
 window.add(containerMain)
 
 window.show()

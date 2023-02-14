@@ -75,22 +75,27 @@ For example running ```test*.txt``` in first example would find only
 ```
 tests.txt
 ```
+For multiple searches in same drive it can be faster to find **all** files in drive by running search for ```***``` and then filtering results. This was tested on **C** drive with ~200 000 found files/folders.  
+It is equivalent of creating temporary index of all files/folders in selected drive and only then seraching results in that index.  
+Filter options search in results for file/folder like
+```
+*yourSearch*
+```
 ## Screenshots
 ### How it looks
 ![Example1](screenshots/screen1.png)
 ![Example2](screenshots/screen2.png)
-### How it could look
-This is **NOT** how app looks, just a comparison how much better (in my opinion) NiGui apps look on Linux
-![Example2](screenshots/linux.png)
 ## List ToDo - MoSCoW
 ### Must have
 - [x] Correct opening folder/file on right/left click
 - [x] Change generating buttons procces to draw only visible part of buttons and draw rest on scrolling
 ### Should have
-- [ ] Make sorting by type,date,name
+- [x] Make sorting by type,date,name
 - [x] Size not from mb, but from kb
 - [ ] On return key search
-- [ ] Filter options for results
+- [x] Filter options for results
+- [ ] Search all drives
+- [ ] Search user selected path
 ### Could have
 - [ ] Arrows key for scroll
 - [ ] Getting icons on default opening program
